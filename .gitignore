@@ -1,0 +1,6 @@
+.env
+airflow/data/
+airflow/logs/
+*.yaml
+test.*
+.idea

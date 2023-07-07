@@ -1,9 +1,10 @@
 import os
 import discord
+from discord_bot.config.environment import DiscordBotConnect
 from datetime import datetime
 
-TOKEN = os.getenv('DISCORD_CHAT_BOT_TOKEN')
-CHANNEL_ID = os.getenv('DISCORD_CHANNEL_ID')
+TOKEN = DiscordBotConnect.TOKEN
+CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
 
 
 class MyClient(discord.Client):

@@ -1,10 +1,20 @@
 import os
 import discord
 from discord_bot.config.environment import DiscordBotConnect
+from discord_bot.util.spark_util import SparkDataLoader
 from datetime import datetime
+from pyspark.sql import SparkSession
 
 TOKEN = DiscordBotConnect.TOKEN
 CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
+
+spark = SparkSession \
+    .builder \
+    .appName("hey gold bot") \
+    .getOrCreate()
+
+
+
 
 
 class MyClient(discord.Client):

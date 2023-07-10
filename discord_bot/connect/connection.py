@@ -10,7 +10,9 @@ class RedshiftSession:
             database=RedshiftConnect.DATABASE,
             user=RedshiftConnect.USERNAME,
             password=RedshiftConnect.PASSWORD,
-            port=5439
+            port=RedshiftConnect.PORT
         )
 
         return conn.cursor()
+
+

@@ -7,6 +7,7 @@ class RedshiftConnect:
     USERNAME = os.getenv('REDSHIFT_USERNAME')
     PASSWORD = os.getenv('REDSHIFT_PASSWORD')
     DATABASE = os.getenv('REDSHIFT_DATABASE')
+    PORT = os.getenv('REDSHIFT_PORT')
 
 
 class DiscordBotConnect:

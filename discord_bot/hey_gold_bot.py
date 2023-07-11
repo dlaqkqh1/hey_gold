@@ -20,6 +20,9 @@ spark_loader = SparkDataLoader()
 gold_data = spark_loader.load_data('dlaqkqh1.gold_prices', spark)
 gold_data.createOrReplaceTempView("gold_data")
 
+silver_data = spark_loader.load_data('dlaqkqh1.silver_prices', spark)
+silver_data.createOrReplaceTempView("silver_data")
+
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -37,8 +40,17 @@ class MyClient(discord.Client):
             await message.channel.send(answer)
 
     def get_max_gold_price(self):
-        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd_pm) as max_price($)
+        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd_pm) as max_price
                          FROM gold_data 
+                         GROUP BY LEFT(date, 4)
+                         ORDER BY 1 DESC""")
+        pandas_d = d.toPandas()
+        output = pandas_d.to_string(index=False)
+        return output
+
+    def get_max_silver_price(self):
+        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd) as max_price
+                         FROM silver_data 
                          GROUP BY LEFT(date, 4)
                          ORDER BY 1 DESC""")
         pandas_d = d.toPandas()
@@ -50,21 +62,14 @@ class MyClient(discord.Client):
 
         answer_dict = {
             '안녕': '안녕하세요. 헤이골드입니다.',
-            '연별': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```'
+            '연별금값': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```',
+            '연별은값': f'연도별 최대 은값 입니다. \n ```{self.get_max_silver_price()}```'
         }
 
         if trim_text == '' or None:
             return "알 수 없는 질의입니다. 답변을 드릴 수 없습니다."
         elif trim_text in answer_dict.keys():
             return answer_dict[trim_text]
-        else:
-            for key in answer_dict.keys():
-                if key.find(trim_text) != -1:
-                    return "연관 단어 [" + key + "]에 대한 답변입니다.\n" + answer_dict[key]
-
-            for key in answer_dict.keys():
-                if answer_dict[key].find(text[1:]) != -1:
-                    return "질문과 가장 유사한 질문 [" + key + "]에 대한 답변이에요.\n" + answer_dict[key]
 
         return text + "은(는) 없는 질문입니다."
 

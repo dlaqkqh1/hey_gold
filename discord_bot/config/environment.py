@@ -1,13 +1,16 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class RedshiftConnect:
     # Redshift 접속 정보
-    HOST = os.getenv('REDSHIFT_HOST')
-    USERNAME = os.getenv('REDSHIFT_USERNAME')
-    PASSWORD = os.getenv('REDSHIFT_PASSWORD')
-    DATABASE = os.getenv('REDSHIFT_DATABASE')
-    PORT = os.getenv('REDSHIFT_PORT')
+    HOST = os.getenv('REDSHIFT_HOST', '')
+    USERNAME = os.getenv('REDSHIFT_USERNAME', '')
+    PASSWORD = os.getenv('REDSHIFT_PASSWORD', '')
+    DATABASE = os.getenv('REDSHIFT_DATABASE', '')
+    PORT = os.getenv('REDSHIFT_PORT', '')
 
 
 class DiscordBotConnect:

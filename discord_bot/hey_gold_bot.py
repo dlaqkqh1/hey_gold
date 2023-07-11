@@ -4,6 +4,7 @@ from discord_bot.config.environment import DiscordBotConnect
 from discord_bot.util.spark_util import SparkDataLoader
 from datetime import datetime
 from pyspark.sql import SparkSession
+import pandas as pd
 
 TOKEN = DiscordBotConnect.TOKEN
 CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
@@ -11,10 +12,13 @@ CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
 spark = SparkSession \
     .builder \
     .appName("hey gold bot") \
+    .config("spark.driver.bindAddress", "127.0.0.1") \
     .getOrCreate()
 
 
-
+spark_loader = SparkDataLoader()
+gold_data = spark_loader.load_data('dlaqkqh1.gold_prices', spark)
+gold_data.createOrReplaceTempView("gold_data")
 
 
 class MyClient(discord.Client):
@@ -32,24 +36,21 @@ class MyClient(discord.Client):
             answer = self.get_answer(message.content)
             await message.channel.send(answer)
 
-    def get_day_of_week(self):
-        weekday_list = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
-
-        weekday = weekday_list[datetime.today().weekday()]
-        date = datetime.today().strftime("%Y년 %m월 %d일")
-        result = '{}({})'.format(date, weekday)
-        return result
-
-    def get_time(self):
-        return datetime.today().strftime("%H시 %M분 %S초")
+    def get_max_gold_price(self):
+        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd_pm) as max_price($)
+                         FROM gold_data 
+                         GROUP BY LEFT(date, 4)
+                         ORDER BY 1 DESC""")
+        pandas_d = d.toPandas()
+        output = pandas_d.to_string(index=False)
+        return output
 
     def get_answer(self, text):
         trim_text = text.replace(" ", "")
 
         answer_dict = {
-            '안녕': '안녕하세요. MyBot입니다.',
-            '요일': ':calendar: 오늘은 {}입니다'.format(self.get_day_of_week()),
-            '시간': ':clock9: 현재 시간은 {}입니다.'.format(self.get_time()),
+            '안녕': '안녕하세요. 헤이골드입니다.',
+            '연별': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```'
         }
 
         if trim_text == '' or None:

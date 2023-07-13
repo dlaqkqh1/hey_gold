@@ -1,10 +1,10 @@
-import os
 import discord
 from discord_bot.config.environment import DiscordBotConnect
 from discord_bot.util.spark_util import SparkDataLoader
-from datetime import datetime
 from pyspark.sql import SparkSession
-import pandas as pd
+from discord_bot.util import kafka_util as ku
+
+
 
 TOKEN = DiscordBotConnect.TOKEN
 CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
@@ -13,6 +13,7 @@ spark = SparkSession \
     .builder \
     .appName("hey gold bot") \
     .config("spark.driver.bindAddress", "127.0.0.1") \
+    .master("local[*]") \
     .getOrCreate()
 
 
@@ -23,6 +24,7 @@ gold_data.createOrReplaceTempView("gold_data")
 silver_data = spark_loader.load_data('dlaqkqh1.silver_prices', spark)
 silver_data.createOrReplaceTempView("silver_data")
 
+ku.create_topic("localhost:9092", 'hey_kafka', 4)
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -57,21 +59,59 @@ class MyClient(discord.Client):
         output = pandas_d.to_string(index=False)
         return output
 
-    def get_answer(self, text):
-        trim_text = text.replace(" ", "")
+    def put_data_to_topic(self, text):
+        print(text)
+        ku.send_data_to_topic("localhost:9092", 'hey_kafka', text)
+        return text + " 전송"
 
-        answer_dict = {
-            '안녕': '안녕하세요. 헤이골드입니다.',
-            '연별금값': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```',
-            '연별은값': f'연도별 최대 은값 입니다. \n ```{self.get_max_silver_price()}```'
+    def put_data_to_s3(self):
+        ku.upload_data_to_s3()
+        return"s3에 데이터 전송"
+
+    def get_answer(self, text):
+        try:
+            command, option = text.split(' ', 1)
+        except:
+            return "알 수 없는 명령입니다."
+
+        hi_answer_dict = {
+            '안녕': '안녕하세요. 헤이골드입니다.'
         }
 
-        if trim_text == '' or None:
-            return "알 수 없는 질의입니다. 답변을 드릴 수 없습니다."
-        elif trim_text in answer_dict.keys():
-            return answer_dict[trim_text]
+        gold_answer_dict = {
+            '연도별최대': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```'
+        }
 
-        return text + "은(는) 없는 질문입니다."
+        silver_answer_dict = {
+            '연도별최대': f'연도별 최대 은값 입니다. \n ```{self.get_max_silver_price()}```'
+        }
+
+        kafka_answer_dict = {
+            'answer': self.put_data_to_topic,
+            's3': self.put_data_to_s3
+        }
+
+        if command == '안녕':
+            if option not in hi_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return hi_answer_dict[option]
+
+        elif command == '헤이골드':
+            if option not in gold_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return gold_answer_dict[option]
+
+        elif command == '헤이실버':
+            if option not in silver_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return silver_answer_dict[option]
+
+        elif command == '헤이카프카':
+            if option == 's3':
+                return kafka_answer_dict['s3']()
+            return kafka_answer_dict['answer'](option)
+
+        return command + "은(는) 없는 명령입니다."
 
 
 intents = discord.Intents.default()

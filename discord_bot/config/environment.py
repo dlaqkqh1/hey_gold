@@ -20,7 +20,7 @@ class DiscordBotConnect:
 
 
 class AWSS3Connect:
-    # Discord Bot 접속 정보
+    # AWS S3 접속 정보
     ACCESS_ID = os.getenv('AWS_S3_ACCESS_ID')
     ACCESS_KEY = os.getenv('AWS_S3_ACCESS_KEY')
     REGION = os.getenv('AWS_REGION')

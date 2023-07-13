@@ -5,7 +5,6 @@ from pyspark.sql import SparkSession
 from discord_bot.util import kafka_util as ku
 
 
-
 TOKEN = DiscordBotConnect.TOKEN
 CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
 
@@ -18,13 +17,9 @@ spark = SparkSession \
 
 
 spark_loader = SparkDataLoader()
-gold_data = spark_loader.load_data('dlaqkqh1.gold_prices', spark)
-gold_data.createOrReplaceTempView("gold_data")
-
-silver_data = spark_loader.load_data('dlaqkqh1.silver_prices', spark)
-silver_data.createOrReplaceTempView("silver_data")
 
 ku.create_topic("localhost:9092", 'hey_kafka', 4)
+
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -42,6 +37,12 @@ class MyClient(discord.Client):
             await message.channel.send(answer)
 
     def get_max_gold_price(self):
+        """
+        연도별 최고 금값 추출
+
+        return:
+        pandas.DataFrame: 연도별 최고 금값
+        """
         d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd_pm) as max_price
                          FROM gold_data 
                          GROUP BY LEFT(date, 4)
@@ -51,6 +52,12 @@ class MyClient(discord.Client):
         return output
 
     def get_max_silver_price(self):
+        """
+        연도별 최고 은값 추출
+
+        return:
+        pandas.DataFrame: 연도별 최고 금값
+        """
         d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd) as max_price
                          FROM silver_data 
                          GROUP BY LEFT(date, 4)
@@ -60,15 +67,39 @@ class MyClient(discord.Client):
         return output
 
     def put_data_to_topic(self, text):
+        """
+        Kafka Producer을 통해 토픽에 데이터 적재
+
+        :parameter
+        text (str): 적재할 텍스트
+
+        :return
+        str: 전송된 텍스트
+        """
         print(text)
         ku.send_data_to_topic("localhost:9092", 'hey_kafka', text)
         return text + " 전송"
 
     def put_data_to_s3(self):
+        """
+        Kafka Consumer을 통해 s3에 텍스트 파일 적재
+
+        :return
+        str: s3에 적재 되었다는 확인 메시지
+        """
         ku.upload_data_to_s3()
         return"s3에 데이터 전송"
 
     def get_answer(self, text):
+        """
+        디스코드 봇에 응답을 리턴하는 함수
+
+        :parameter
+        text: 사용자가 보낸 텍스트
+
+        :return
+        str: 디스코드 봇의 응답
+        """
         try:
             command, option = text.split(' ', 1)
         except:
@@ -113,7 +144,11 @@ class MyClient(discord.Client):
 
         return command + "은(는) 없는 명령입니다."
 
+gold_data = spark_loader.load_data('dlaqkqh1.gold_prices', spark)
+gold_data.createOrReplaceTempView("gold_data")
 
+silver_data = spark_loader.load_data('dlaqkqh1.silver_prices', spark)
+silver_data.createOrReplaceTempView("silver_data")
 intents = discord.Intents.default()
 intents.message_content = True
 client = MyClient(intents=intents)

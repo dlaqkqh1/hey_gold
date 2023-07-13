@@ -1,11 +1,30 @@
-import os
 import discord
 from discord_bot.config.environment import DiscordBotConnect
-from datetime import datetime
+from discord_bot.util.spark_util import SparkDataLoader
+from pyspark.sql import SparkSession
+from discord_bot.util import kafka_util as ku
+
+
 
 TOKEN = DiscordBotConnect.TOKEN
 CHANNEL_ID = DiscordBotConnect.CHANNEL_ID
 
+spark = SparkSession \
+    .builder \
+    .appName("hey gold bot") \
+    .config("spark.driver.bindAddress", "127.0.0.1") \
+    .master("local[*]") \
+    .getOrCreate()
+
+
+spark_loader = SparkDataLoader()
+gold_data = spark_loader.load_data('dlaqkqh1.gold_prices', spark)
+gold_data.createOrReplaceTempView("gold_data")
+
+silver_data = spark_loader.load_data('dlaqkqh1.silver_prices', spark)
+silver_data.createOrReplaceTempView("silver_data")
+
+ku.create_topic("localhost:9092", 'hey_kafka', 4)
 
 class MyClient(discord.Client):
     async def on_ready(self):
@@ -22,40 +41,77 @@ class MyClient(discord.Client):
             answer = self.get_answer(message.content)
             await message.channel.send(answer)
 
-    def get_day_of_week(self):
-        weekday_list = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+    def get_max_gold_price(self):
+        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd_pm) as max_price
+                         FROM gold_data 
+                         GROUP BY LEFT(date, 4)
+                         ORDER BY 1 DESC""")
+        pandas_d = d.toPandas()
+        output = pandas_d.to_string(index=False)
+        return output
 
-        weekday = weekday_list[datetime.today().weekday()]
-        date = datetime.today().strftime("%Y년 %m월 %d일")
-        result = '{}({})'.format(date, weekday)
-        return result
+    def get_max_silver_price(self):
+        d = spark.sql("""SELECT left(date, 4) AS year, MAX(usd) as max_price
+                         FROM silver_data 
+                         GROUP BY LEFT(date, 4)
+                         ORDER BY 1 DESC""")
+        pandas_d = d.toPandas()
+        output = pandas_d.to_string(index=False)
+        return output
 
-    def get_time(self):
-        return datetime.today().strftime("%H시 %M분 %S초")
+    def put_data_to_topic(self, text):
+        print(text)
+        ku.send_data_to_topic("localhost:9092", 'hey_kafka', text)
+        return text + " 전송"
+
+    def put_data_to_s3(self):
+        ku.upload_data_to_s3()
+        return"s3에 데이터 전송"
 
     def get_answer(self, text):
-        trim_text = text.replace(" ", "")
+        try:
+            command, option = text.split(' ', 1)
+        except:
+            return "알 수 없는 명령입니다."
 
-        answer_dict = {
-            '안녕': '안녕하세요. MyBot입니다.',
-            '요일': ':calendar: 오늘은 {}입니다'.format(self.get_day_of_week()),
-            '시간': ':clock9: 현재 시간은 {}입니다.'.format(self.get_time()),
+        hi_answer_dict = {
+            '안녕': '안녕하세요. 헤이골드입니다.'
         }
 
-        if trim_text == '' or None:
-            return "알 수 없는 질의입니다. 답변을 드릴 수 없습니다."
-        elif trim_text in answer_dict.keys():
-            return answer_dict[trim_text]
-        else:
-            for key in answer_dict.keys():
-                if key.find(trim_text) != -1:
-                    return "연관 단어 [" + key + "]에 대한 답변입니다.\n" + answer_dict[key]
+        gold_answer_dict = {
+            '연도별최대': f'연도별 최대 금값 입니다. \n ```{self.get_max_gold_price()}```'
+        }
 
-            for key in answer_dict.keys():
-                if answer_dict[key].find(text[1:]) != -1:
-                    return "질문과 가장 유사한 질문 [" + key + "]에 대한 답변이에요.\n" + answer_dict[key]
+        silver_answer_dict = {
+            '연도별최대': f'연도별 최대 은값 입니다. \n ```{self.get_max_silver_price()}```'
+        }
 
-        return text + "은(는) 없는 질문입니다."
+        kafka_answer_dict = {
+            'answer': self.put_data_to_topic,
+            's3': self.put_data_to_s3
+        }
+
+        if command == '안녕':
+            if option not in hi_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return hi_answer_dict[option]
+
+        elif command == '헤이골드':
+            if option not in gold_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return gold_answer_dict[option]
+
+        elif command == '헤이실버':
+            if option not in silver_answer_dict.keys():
+                return f"{option}은 알 수 없는 명령입니다."
+            return silver_answer_dict[option]
+
+        elif command == '헤이카프카':
+            if option == 's3':
+                return kafka_answer_dict['s3']()
+            return kafka_answer_dict['answer'](option)
+
+        return command + "은(는) 없는 명령입니다."
 
 
 intents = discord.Intents.default()
